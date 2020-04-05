@@ -32,8 +32,8 @@ void loop() {
     btSerial.readBytes(buf, bufLength);
 	//Serial.println(bufLength);
 	
-	int funcCode = buf[1];
-	int reqLength = 8; // длина команды для большинства функций
+	int funcCode = buf[1]; // код функции
+	int reqLength = 8; // длина запроса для большинства функций
 	
 	// команды с кодами 15(0x0F) и 16(0x10) могут быть длиннее 8 байт
 	if ((funcCode == 15) || (funcCode == 16)) {
@@ -97,10 +97,34 @@ void loop() {
   if (Serial.available()) {
 //    data = Serial.read();
 //    btSerial.print(data);
-    byte buf2[10] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
-    Serial.readBytes(buf2, 10);
+    // byte buf2[10] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
+    // Serial.readBytes(buf2, 10);
+	
+    byte buf[20] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
+	int bufLength = sizeof(buf);
+    Serial.readBytes(buf, bufLength);
+	
+	int answerLength = 0;
 
-    btSerial.write(buf2, 10);
+	// Читаем 2й байт (buf[1]), если его старший бит = 1, 
+	// значит это ответ с ошибкой. Длина ответа в этом случае = 5 байт
+	int errorInAnswer = buf[1] >> 7; // сдвигом получаем значение старшего бита
+	// Serial.println(errorInAnswer);
+	
+	if (errorInAnswer == 1) {
+		answerLength = 5;
+	} else {
+		// Иначе читаем 3й байт (buf[2]), в нём количество байт идущих далее
+		// и добавляем ещё 2 байта CRC
+		int numNextBytes = buf[2];
+		answerLength = 3 + numNextBytes + 2;
+		
+		// если вдруг ответ получился длиннее буфера (на всякий случай)
+		// то просто шлём весь буфер
+		if (answerLength > bufLength) {
+			answerLength = bufLength;
+		}	
+	}
+    btSerial.write(buf, answerLength);
   }
-  
 }
