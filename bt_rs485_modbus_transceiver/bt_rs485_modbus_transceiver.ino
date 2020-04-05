@@ -102,20 +102,29 @@ void loop() {
 	
     byte buf[20] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
 	int bufLength = sizeof(buf);
-    Serial.readBytes(buf, bufLength);	
+    Serial.readBytes(buf, bufLength);
+	
+	int answerLength = 0;
 
-	// Читаем 3й байт (buf[2]), в нём количество байт идущих далее,
-	// добавляем ещё 2 байта CRC и отправляем
-	int numNextBytes = buf[2];
-	int answerLength = 3 + numNextBytes + 2;
+	// Читаем 2й байт (buf[1]), если его старший бит = 1, 
+	// значит это ответ с ошибкой. Длина ответа в этом случае = 5 байт
+	int errorInAnswer = buf[1] >> 7; // сдвигом получаем значение старшего бита
+	// Serial.println(errorInAnswer);
 	
-	// если вдруг ответ получился длиннее буфера (на всякий случай)
-	// то просто шлём весь буфер
-	if (answerLength > bufLength) {
-		answerLength = bufLength;
+	if (errorInAnswer == 1) {
+		answerLength = 5;
+	} else {
+		// Иначе читаем 3й байт (buf[2]), в нём количество байт идущих далее
+		// и добавляем ещё 2 байта CRC
+		int numNextBytes = buf[2];
+		answerLength = 3 + numNextBytes + 2;
+		
+		// если вдруг ответ получился длиннее буфера (на всякий случай)
+		// то просто шлём весь буфер
+		if (answerLength > bufLength) {
+			answerLength = bufLength;
+		}	
 	}
-	
     btSerial.write(buf, answerLength);
   }
-  
 }
