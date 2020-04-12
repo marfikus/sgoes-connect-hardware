@@ -27,7 +27,12 @@ void loop() {
   // со смарта в комп:
   if (btSerial.available()) {
     
-    byte buf[20] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
+    byte buf[40] = {
+					0,0,0,0,0,0,0,0,0,0,
+					0,0,0,0,0,0,0,0,0,0,
+					0,0,0,0,0,0,0,0,0,0,
+					0,0,0,0,0,0,0,0,0,0
+	};
 	int bufLength = sizeof(buf);
     btSerial.readBytes(buf, bufLength);
 	//Serial.println(bufLength);
@@ -100,7 +105,12 @@ void loop() {
     // byte buf2[10] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
     // Serial.readBytes(buf2, 10);
 	
-    byte buf[20] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
+    byte buf[40] = {
+					0,0,0,0,0,0,0,0,0,0,
+					0,0,0,0,0,0,0,0,0,0,
+					0,0,0,0,0,0,0,0,0,0,
+					0,0,0,0,0,0,0,0,0,0
+	};
 	int bufLength = sizeof(buf);
     Serial.readBytes(buf, bufLength);
 	
