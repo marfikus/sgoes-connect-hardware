@@ -1,140 +1,106 @@
+/* 
+Данный скетч позволяет реализовать примитивный обмен данными по протоколу Modbus RTU.
+Ведущим (master) устройством является смартфон с установленным приложением, позволяющим отправлять и принимать Modbus-пакеты.
+Ведомым (slave) устройством в данном случае является датчик-сигнализатор горючих газов СГОЭС.
+В качестве устройства сопряжения используется связка: 
+    модуль Bluetooth(HC-05) <=> плата Arduino(Nano, Uno..) <=> микросхема MAX3082(приёмопередатчик RS-485).
+Смартфон посылает запрос по bluetooth-каналу, arduino его принимает, немного парсит (определяет длину) и отправляет в линию RS-485 к датчику. Датчик отвечает, arduino принимает этот ответ, тоже немного парсит и отправляет по bluetooth в смартфон. 
+*/
+
 #include <SoftwareSerial.h>
 
-SoftwareSerial btSerial(2, 3); // for bluetooth (hc-05)
-//SoftwareSerial rs485(11, 12); //
-//char data;
-//byte buf[10];
+SoftwareSerial btSerial(2, 3); // for bluetooth module (hc-05)
 
 void setup() {
-  pinMode(2, INPUT); // rx
-  pinMode(3, OUTPUT); // tx
-//  pinMode(11, INPUT); // rx
-//  pinMode(12, OUTPUT); // tx
-  
-  pinMode(13, OUTPUT); // переключатель приём\передача
-  digitalWrite(13, LOW); // включаем приём
-  
-  // экспериментально понял, что скорости должны быть одинаковы
-  // иначе начинаются искажения: послал одно - пришло другое
-  Serial.begin(9600);
-  btSerial.begin(9600);
-  
-  //rs485.begin(9600);
-  //Serial.println("begin");
+    pinMode(2, INPUT); // rx
+    pinMode(3, OUTPUT); // tx
+
+    pinMode(13, OUTPUT); // переключатель приём\передача
+    digitalWrite(13, LOW); // включаем приём
+
+    // экспериментально понял, что скорости должны быть одинаковы
+    // иначе начинаются искажения: послал одно - пришло другое
+    Serial.begin(9600);
+    btSerial.begin(9600);
 }
 
 void loop() {
-  // со смарта в комп:
-  if (btSerial.available()) {
-    
+    // Приём запроса от смартфона
+    // Если что-то пришло:
+    if (btSerial.available()) {
+    // Создаём буфер для приёма и инициализируем его нулями, 
+    // чтобы не было потом искажений
     byte buf[40] = {
-					0,0,0,0,0,0,0,0,0,0,
-					0,0,0,0,0,0,0,0,0,0,
-					0,0,0,0,0,0,0,0,0,0,
-					0,0,0,0,0,0,0,0,0,0
-	};
-	int bufLength = sizeof(buf);
+                    0,0,0,0,0,0,0,0,0,0,
+                    0,0,0,0,0,0,0,0,0,0,
+                    0,0,0,0,0,0,0,0,0,0,
+                    0,0,0,0,0,0,0,0,0,0
+    };
+    int bufLength = sizeof(buf);
+    // Читаем байты и кладём их в созданный буфер
     btSerial.readBytes(buf, bufLength);
-	//Serial.println(bufLength);
-	
-	int funcCode = buf[1]; // код функции
-	int reqLength = 8; // длина запроса для большинства функций
-	
-	// команды с кодами 15(0x0F) и 16(0x10) могут быть длиннее 8 байт
-	if ((funcCode == 15) || (funcCode == 16)) {
-		//Serial.println("more bites");
-		
-		// Читаем 7й байт (buf[6]), в нём количество байт идущих далее
-		// и добавляем ещё 2 байта CRC
-		int numNextBytes = buf[6];
-		reqLength = 7 + numNextBytes + 2;
-		
-		// если вдруг запрос получился длиннее буфера (на всякий случай)
-		// то просто шлём весь буфер
-		if (reqLength > bufLength) {
-			reqLength = bufLength;
-		}
-		//Serial.println(reqLength);
-	}
 
-    //int reqLength = buf[0];
-    //Serial.println(reqLength);
-	
-    //byte request[reqLength];
-    //digitalWrite(13, HIGH); // включаем передачу
-    //for (int i = 0; i < reqLength; i++) {
-      //request[i] = buf[i + 1];
+    int funcCode = buf[1]; // код функции
+    int reqLength = 8; // длина запроса для большинства функций
 
-      //Serial.print(buf[i + 1], HEX);
-      //Serial.print(" ");      
-      //rs485.print(buf[i + 1], HEX);
-      
-      //Serial.write(buf[i + 1]);
-    //}
-    //Serial.println();
-    //digitalWrite(13, LOW); // включаем приём
-
-    // первый вариант:
+    // команды с кодами 15(0x0F) и 16(0x10) могут быть длиннее 8 байт
+    if ((funcCode == 15) || (funcCode == 16)) {
+        // Читаем 7й байт (buf[6]), в нём количество байт идущих далее,
+        // и добавляем ещё 2 байта CRC
+        int numNextBytes = buf[6];
+        reqLength = 7 + numNextBytes + 2;
+        // если вдруг запрос получился длиннее буфера (на всякий случай),
+        // то просто шлём весь буфер
+        if (reqLength > bufLength) {
+            reqLength = bufLength;
+        }
+    }
+    // Передача запроса к датчику
     digitalWrite(13, HIGH); // включаем передачу
-    Serial.write(buf, reqLength);
-    delay(10); // может уменьшить?
+    Serial.write(buf, reqLength); // шлём байты в линию
+    // Небольшая задержка нужна. Если без неё, то вероятно не успевает передать,
+    // а если больше сделать, то ответ можно пропустить.
+    // Поэтому экспериментально подобрана такая задержка :)
+    delay(10);
     digitalWrite(13, LOW); // включаем приём
-    //===========================
-    
-//    int i = 0;
-//    while (btSerial.available()) {
-//      buf[i] = btSerial.read();
-//      i++;
-//    }
-    //Serial.write(buf, 2);
-    //Serial.println("i: " + String(i));
-    //Serial.println(buf[0], HEX);
+    }
 
-//    for (int i = 0; i < reqLength; i++) {
-//      //Serial.println(buf[j], HEX);
-//      Serial.print(buf[j], HEX);
-//      Serial.print(" ");
-//    }
-//    Serial.println();
-  }
-
-  // с компа в смарт:
-  if (Serial.available()) {
-//    data = Serial.read();
-//    btSerial.print(data);
-    // byte buf2[10] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
-    // Serial.readBytes(buf2, 10);
-	
+    // Приём ответа от датчика.
+    // Если что-то пришло:
+    if (Serial.available()) {
+    // Аналогично создаём буфер и инициализируем нулями
     byte buf[40] = {
-					0,0,0,0,0,0,0,0,0,0,
-					0,0,0,0,0,0,0,0,0,0,
-					0,0,0,0,0,0,0,0,0,0,
-					0,0,0,0,0,0,0,0,0,0
-	};
-	int bufLength = sizeof(buf);
+                    0,0,0,0,0,0,0,0,0,0,
+                    0,0,0,0,0,0,0,0,0,0,
+                    0,0,0,0,0,0,0,0,0,0,
+                    0,0,0,0,0,0,0,0,0,0
+    };
+    int bufLength = sizeof(buf);
+    // Читаем байты и кладём их в созданный буфер
     Serial.readBytes(buf, bufLength);
-	
-	int answerLength = 0;
 
-	// Читаем 2й байт (buf[1]), если его старший бит = 1, 
-	// значит это ответ с ошибкой. Длина ответа в этом случае = 5 байт
-	int errorInAnswer = buf[1] >> 7; // сдвигом получаем значение старшего бита
-	// Serial.println(errorInAnswer);
-	
-	if (errorInAnswer == 1) {
-		answerLength = 5;
-	} else {
-		// Иначе читаем 3й байт (buf[2]), в нём количество байт идущих далее
-		// и добавляем ещё 2 байта CRC
-		int numNextBytes = buf[2];
-		answerLength = 3 + numNextBytes + 2;
-		
-		// если вдруг ответ получился длиннее буфера (на всякий случай)
-		// то просто шлём весь буфер
-		if (answerLength > bufLength) {
-			answerLength = bufLength;
-		}	
-	}
+    // Длина ответа пока 0
+    int answerLength = 0;
+
+    // Читаем 2й байт (buf[1]), если его старший бит = 1, 
+    // значит это ответ с ошибкой. Длина ответа в этом случае = 5 байт
+    int errorInAnswer = buf[1] >> 7; // сдвигом получаем значение старшего бита
+
+    if (errorInAnswer == 1) {
+        answerLength = 5;
+    } else {
+        // Иначе читаем 3й байт (buf[2]), в нём количество байт идущих далее
+        // и добавляем ещё 2 байта CRC
+        int numNextBytes = buf[2];
+        answerLength = 3 + numNextBytes + 2;
+        
+        // если вдруг ответ получился длиннее буфера (на всякий случай)
+        // то просто шлём весь буфер
+        if (answerLength > bufLength) {
+            answerLength = bufLength;
+        }   
+    }
+    // Передача ответа в смартфон
     btSerial.write(buf, answerLength);
-  }
+    }
 }
